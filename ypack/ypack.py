@@ -212,8 +212,9 @@ class Trainer:
     def _setup(self):
         tos = self._get_train_ops()
         main_to = self.build_train_op(tos[0], do_step=True)
-        other_tos = [self.build_train_op(to, do_step=False) for to in tos[1:]]
+        other_tos = [self.build_train_op(to, do_step=True) for to in tos[1:]]
         self.train_ops = itt.cycle([main_to] + other_tos)
+        self.num_train_ops = len(other_tos) + 1
         self.init_op = tf.global_variables_initializer()
 
     def run_step(self):
