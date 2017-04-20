@@ -124,17 +124,20 @@ class Evaluator:
 class EvalDatasetRunner(Callback):
     def __init__(self, steps_per_epoch, model, eval_dataset, evaluators=[]):
         super().__init__(steps_per_epoch)
-        ds = eval_dataset
-        ds.reset_state()
-        self.data = ds
-        ds = RepeatedData(ds, -1)
-        self.data_producer = ds.get_data()
+        if model.feed:
+            ds = eval_dataset
+            ds.reset_state()
+            self.data = ds
+            ds = RepeatedData(ds, -1)
+            self.data_producer = ds.get_data()
+        else:
+            self.data_queue = eval_dataset
         self.model = model
         self.evaluators = evaluators
 
     def _setup(self):
         with tf.variable_scope('', reuse=True), no_training_context():
-            self.model.build_graph()
+            self.model.build_graph(self.data_queue)
         self.eval_ops = []
         for e in self.evaluators:
             e.setup(self)
@@ -147,9 +150,12 @@ class EvalDatasetRunner(Callback):
     def _trigger_epoch(self):
         if self.trainer.step_count == 0:
             return
-        batch = next(self.data_producer)
-        feed = dict(zip(self.model.get_input_vars(), batch))
-        summary_str = self.trainer.sess.run(self.summary_op, feed_dict=feed)
+        if self.model.feed:
+            batch = next(self.data_producer)
+            feed = dict(zip(self.model.get_input_vars(), batch))
+            summary_str = self.trainer.sess.run(self.summary_op, feed_dict=feed)
+        else:
+            summary_str = self.trainer.sess.run(self.summary_op)
         self.trainer.summary_writer.add_summary(summary_str, self.trainer.step_count + 1)
         self.trainer.summary_writer.flush()
 
@@ -168,14 +174,17 @@ TRAINING_SUMMARY_KEY = 'training_summaries'
 class Trainer:
     def __init__(self, model, data_producer, callbacks=[], write_train_summaries=True, train_data_size=None):
         self.model = model
-        self.data_producer = data_producer
+        if model.feed:
+            self.data_producer = data_producer
+        else:
+            self.data_queue = data_producer
         self.callbacks = callbacks
         self.write_train_summaries = write_train_summaries
         self.train_data_size = train_data_size
 
     def setup(self):
         with training_context():
-            self.model.build_graph()
+            self.model.build_graph(self.data_queue)
         self._setup_callbacks()
         self._setup()
         shutil.rmtree('./logs', ignore_errors=True)
@@ -186,6 +195,10 @@ class Trainer:
             print(v)
         self.sess = tf.Session()
         self.sess.run(self.init_op)
+
+        if not self.model.feed:
+            self.coord = tf.train.Coordinator()
+            self.threads = tf.train.start_queue_runners(sess=self.sess, coord=self.coord)
 
     def _setup_callbacks(self):
         for c in self.callbacks:
@@ -221,11 +234,14 @@ class Trainer:
         return self._run_step()
 
     def _run_step(self):
-        batch = next(self.data_producer)
-        feed = dict(zip(self.model.get_input_vars(), batch))
-        summary_str, global_step = self.sess.run(next(self.train_ops), feed_dict=feed)
+        if self.model.feed:
+            batch = next(self.data_producer)
+            feed = dict(zip(self.model.get_input_vars(), batch))
+            summary_str, global_step = self.sess.run(next(self.train_ops), feed_dict=feed)
+        else:
+            summary_str, global_step = self.sess.run(next(self.train_ops))
         did_step = global_step == self.step_count + 1
-        if self.write_train_summaries and len(summary_str) > 0:
+        if self.write_train_summaries and len(summary_str) > 0 and did_step:
             self.summary_writer.add_summary(summary_str, global_step=global_step)
             self.summary_writer.flush()
         return did_step
@@ -234,7 +250,9 @@ class Trainer:
         pass
 
     def stop(self):
-        return self._stop()
+        if self.model.feed:
+            return self._stop()
+        return self._stop() or self.coord.should_stop()
 
     def run_callbacks(self):
         for c in self.callbacks:
@@ -245,18 +263,27 @@ class Trainer:
             self.setup()
             self.step_count = 0
             stop_it = False
-            while not self.stop() and not stop_it:
-                try:
-                    did_step = self.run_step()
-                except StopIteration:
-                    stop_it = True
-                    did_step = False
-                self.run_callbacks()
-                if did_step:
-                    self.step_count += 1
+            try:
+                while not self.stop() and not stop_it:
+                    try:
+                        did_step = self.run_step()
+                    except (StopIteration, tf.errors.OutOfRangeError):
+                        stop_it = True
+                        did_step = False
+                    self.run_callbacks()
+                    if did_step:
+                        self.step_count += 1
+            finally:
+                if not self.model.feed:
+                    self.coord.request_stop()
+            if not self.model.feed:
+                self.coord.join(self.threads)
 
 
 class ModelDesc:
+    def __init__(self, feed=False):
+        self.feed = feed
+
     def build_graph(self, input_vars=None):
         if input_vars is None:
             input_vars = self.get_input_vars()
