@@ -131,11 +131,16 @@ class EvalDatasetRunner(Callback):
             ds = RepeatedData(ds, -1)
             self.data_producer = ds.get_data()
         else:
-            self.data_queue = eval_dataset
+            self.data_producer = eval_dataset
         self.model = model
         self.evaluators = evaluators
 
     def _setup(self):
+        if self.model.feed:
+            self.data_queue = None
+        else:
+            self.data_queue = self.data_producer()
+
         with tf.variable_scope('', reuse=True), no_training_context():
             self.model.build_graph(self.data_queue)
         self.eval_ops = []
@@ -174,15 +179,17 @@ TRAINING_SUMMARY_KEY = 'training_summaries'
 class Trainer:
     def __init__(self, model, data_producer, callbacks=[], write_train_summaries=True, train_data_size=None):
         self.model = model
-        if model.feed:
-            self.data_producer = data_producer
-        else:
-            self.data_queue = data_producer
+        self.data_producer = data_producer
         self.callbacks = callbacks
         self.write_train_summaries = write_train_summaries
         self.train_data_size = train_data_size
 
     def setup(self):
+        if self.model.feed:
+            self.data_queue = None
+        else:
+            self.data_queue = self.data_producer()
+
         with training_context():
             self.model.build_graph(self.data_queue)
         self._setup_callbacks()
@@ -228,7 +235,7 @@ class Trainer:
         other_tos = [self.build_train_op(to, do_step=True) for to in tos[1:]]
         self.train_ops = itt.cycle([main_to] + other_tos)
         self.num_train_ops = len(other_tos) + 1
-        self.init_op = tf.global_variables_initializer()
+        self.init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
 
     def run_step(self):
         return self._run_step()
@@ -278,6 +285,7 @@ class Trainer:
                     self.coord.request_stop()
             if not self.model.feed:
                 self.coord.join(self.threads)
+            self.sess.close()
 
 
 class ModelDesc:
