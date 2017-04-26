@@ -5,7 +5,6 @@ import logging
 import tensorflow as tf
 from contextlib import contextmanager
 from tqdm import tqdm
-from tensorpack.dataflow.common import RepeatedData
 import numpy as np
 import itertools as itt
 
@@ -125,6 +124,7 @@ class EvalDatasetRunner(Callback):
     def __init__(self, steps_per_epoch, model, eval_dataset, evaluators=[]):
         super().__init__(steps_per_epoch)
         if model.feed:
+            from tensorpack.dataflow.common import RepeatedData
             ds = eval_dataset
             ds.reset_state()
             self.data = ds
