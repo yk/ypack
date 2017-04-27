@@ -413,3 +413,11 @@ def lrelu(x, alpha=0.2):
     xbot = tf.nn.relu(-xtop)
     xx = xtop - tf.constant(alpha, dtype=tf.float32) * xbot
     return xx
+
+
+#http://stackoverflow.com/questions/38160940/how-to-count-total-number-of-trainable-parameters-in-a-tensorflow-model
+def count_params():
+    "print number of trainable variables"
+    size = lambda v: itt.reduce(lambda x, y: x*y, v.get_shape().as_list())
+    n = sum(size(v) for v in tf.trainable_variables())
+    print "Model size: %dK" % (n//1000,)
