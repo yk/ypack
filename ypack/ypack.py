@@ -200,6 +200,7 @@ class Trainer:
         print('----TRAINABLES----')
         for v in tf.trainable_variables():
             print(v)
+        count_params()
         self.sess = tf.Session()
         self.sess.run(self.init_op)
 
