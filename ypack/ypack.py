@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from tqdm import tqdm
 import numpy as np
 import itertools as itt
+import functools as fct
 
 
 def tf_print(a):
@@ -419,6 +420,6 @@ def lrelu(x, alpha=0.2):
 #http://stackoverflow.com/questions/38160940/how-to-count-total-number-of-trainable-parameters-in-a-tensorflow-model
 def count_params():
     "print number of trainable variables"
-    size = lambda v: itt.reduce(lambda x, y: x*y, v.get_shape().as_list())
+    size = lambda v: fct.reduce(lambda x, y: x*y, v.get_shape().as_list())
     n = sum(size(v) for v in tf.trainable_variables())
     print("Model size: %dK" % (n//1000,))
