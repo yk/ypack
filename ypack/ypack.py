@@ -44,6 +44,12 @@ class Callback:
     def _setup(self):
         pass
 
+    def before_init(self):
+        self._before_init()
+
+    def _before_init(self):
+        pass
+
     def is_epoch_now(self):
         if self.steps_per_epoch <= 0:
             return False
@@ -76,6 +82,26 @@ class ModelSaver(Callback):
     def _trigger_epoch(self):
         logging.info('Saving model')
         self.saver.save(self.trainer.sess, './logs/model.ckpt')
+
+
+class ModelRestorer(Callback):
+    def __init__(self, path, var_prefix=None):
+        super().__init__()
+        self.path = path
+        self.prefix = var_prefix
+
+    def _setup(self):
+        self._to_restore = tf.global_variables()
+        if self.prefix:
+            self._to_restore = [v for v in self._to_restore if v.name.startswith(self.prefix)]
+        self.saver = tf.train.Saver(self._to_restore)
+
+    def _before_init(self):
+        self.saver.restore(self.trainer.sess, self.path)
+        self.trainer.init_op = tf.group(
+                tf.local_variables_initializer(), 
+                tf.variables_initializer([v for v in tf.global_variables() if v not in self._to_restore])
+            )
 
 
 class EpochCounter(Callback):
@@ -197,12 +223,13 @@ class Trainer:
         self._setup()
         shutil.rmtree('./logs', ignore_errors=True)
         self.summary_writer = tf.summary.FileWriter('./logs')
-        tf.get_default_graph().finalize()
+        count_params()
+        self.sess = tf.Session()
+        self._before_init()
         print('----TRAINABLES----')
         for v in tf.trainable_variables():
             print(v)
-        count_params()
-        self.sess = tf.Session()
+        tf.get_default_graph().finalize()
         self.sess.run(self.init_op)
 
         if not self.model.feed:
@@ -212,6 +239,10 @@ class Trainer:
     def _setup_callbacks(self):
         for c in self.callbacks:
             c.setup(self)
+
+    def _before_init(self):
+        for c in self.callbacks:
+            c.before_init()
 
     def build_train_op(self, ops, global_step_op=None, training_summary_op=None, do_step=True):
         if global_step_op is None:
