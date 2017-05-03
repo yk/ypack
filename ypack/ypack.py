@@ -252,7 +252,7 @@ class Trainer:
             else:
                 global_step_op = tf.assign_add(gsv, 0)
         if training_summary_op is None:
-            if do_step:
+            if do_step and self.write_train_summaries:
                 training_summary_op = tf.summary.merge_all(TRAINING_SUMMARY_KEY)
             else:
                 training_summary_op = tf.constant('', dtype=tf.string)
