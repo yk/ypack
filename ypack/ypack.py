@@ -76,8 +76,8 @@ class ArgvPrinter(Callback):
 
 
 class ModelSaver(Callback):
-    def __init__(self, write_meta_graph=True, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, write_meta_graph=True):
+        super().__init__()
         self.write_meta_graph = write_meta_graph
 
     def _setup(self):
