@@ -76,12 +76,13 @@ class ArgvPrinter(Callback):
 
 
 class ModelSaver(Callback):
-    def _setup(self):
+    def _setup(self, write_meta_graph=True):
         self.saver = tf.train.Saver()
+        self.write_meta_graph = write_meta_graph
 
     def _trigger_epoch(self):
         logging.info('Saving model')
-        self.saver.save(self.trainer.sess, './logs/model.ckpt')
+        self.saver.save(self.trainer.sess, './logs/model.ckpt', write_meta_graph=self.write_meta_graph)
 
 
 class ModelRestorer(Callback):
