@@ -76,9 +76,12 @@ class ArgvPrinter(Callback):
 
 
 class ModelSaver(Callback):
-    def _setup(self, write_meta_graph=True):
-        self.saver = tf.train.Saver()
+    def __init__(self, write_meta_graph=True, **kwargs):
+        super().__init__(**kwargs)
         self.write_meta_graph = write_meta_graph
+
+    def _setup(self):
+        self.saver = tf.train.Saver()
 
     def _trigger_epoch(self):
         logging.info('Saving model')
