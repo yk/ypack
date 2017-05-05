@@ -8,6 +8,7 @@ from tqdm import tqdm
 import numpy as np
 import itertools as itt
 import functools as fct
+import tensorflow.contrib.metrics as tfm
 
 
 def tf_print(a):
@@ -151,8 +152,12 @@ class Evaluator:
         pass
 
 
+def streaming_mean(name, value):
+    tf.summary.scalar(name, tfm.streaming_mean(value, name='stream/{}'.format(name)))
+
+
 class EvalDatasetRunner(Callback):
-    def __init__(self, steps_per_epoch, model, eval_dataset, evaluators=[]):
+    def __init__(self, steps_per_epoch, model, eval_dataset, evaluators=[], eval_steps=1):
         super().__init__(steps_per_epoch)
         if model.feed:
             from tensorpack.dataflow.common import RepeatedData
@@ -165,6 +170,7 @@ class EvalDatasetRunner(Callback):
             self.data_producer = eval_dataset
         self.model = model
         self.evaluators = evaluators
+        self.eval_steps = eval_steps
 
     def _setup(self):
         if self.model.feed:
@@ -180,18 +186,22 @@ class EvalDatasetRunner(Callback):
             eops = e._get_ops()
             if eops is not None:
                 self.eval_ops += eops
+        stream_vars = [v for v in tf.local_variables() if 'stream/' in v.name]
+        self.stream_reset_op = tf.variables_initializer(stream_vars)
         with tf.control_dependencies(self.eval_ops):
             self.summary_op = tf.identity(tf.summary.merge_all(tf.GraphKeys.SUMMARIES))
 
     def _trigger_epoch(self):
         if self.trainer.step_count == 0:
             return
-        if self.model.feed:
-            batch = next(self.data_producer)
-            feed = dict(zip(self.model.get_input_vars(), batch))
-            summary_str = self.trainer.sess.run(self.summary_op, feed_dict=feed)
-        else:
-            summary_str = self.trainer.sess.run(self.summary_op)
+        self.trainer.sess.run(self.stream_reset_op)
+        for _ in range(self.eval_steps):
+            if self.model.feed:
+                batch = next(self.data_producer)
+                feed = dict(zip(self.model.get_input_vars(), batch))
+                summary_str = self.trainer.sess.run(self.summary_op, feed_dict=feed)
+            else:
+                summary_str = self.trainer.sess.run(self.summary_op)
         self.trainer.summary_writer.add_summary(summary_str, self.trainer.step_count + 1)
         self.trainer.summary_writer.flush()
 
