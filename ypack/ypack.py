@@ -153,7 +153,7 @@ class Evaluator:
 
 
 def streaming_mean(name, value):
-    tf.summary.scalar(name, tfm.streaming_mean(value, name='stream/{}'.format(name)))
+    tf.summary.scalar(name, tfm.streaming_mean(value, name='stream/{}'.format(name))[1])
 
 
 class EvalDatasetRunner(Callback):
