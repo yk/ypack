@@ -156,6 +156,10 @@ def streaming_mean(name, value):
     tf.summary.scalar(name, tfm.streaming_mean(value, name='stream/{}'.format(name))[1])
 
 
+def streaming_accuracy(name, predictions, labels):
+    tf.summary.scalar(name, tfm.streaming_accuracy(predictions, labels, name='stream/{}'.format(name))[1])
+
+
 class EvalDatasetRunner(Callback):
     def __init__(self, steps_per_epoch, model, eval_dataset, evaluators=[], eval_steps=1):
         super().__init__(steps_per_epoch)
