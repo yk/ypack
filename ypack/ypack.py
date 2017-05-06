@@ -205,6 +205,7 @@ class EvalDatasetRunner(Callback):
                 feed = dict(zip(self.model.get_input_vars(), batch))
                 summary_str = self.trainer.sess.run(self.summary_op, feed_dict=feed)
             else:
+                print('eval')
                 summary_str = self.trainer.sess.run(self.summary_op)
         self.trainer.summary_writer.add_summary(summary_str, self.trainer.step_count + 1)
         self.trainer.summary_writer.flush()
