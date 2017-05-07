@@ -159,6 +159,9 @@ def streaming_mean(name, value):
 def streaming_accuracy(name, predictions, labels):
     tf.summary.scalar(name, tfm.streaming_accuracy(predictions, labels, name='stream/{}'.format(name))[1])
 
+def streaming_concat(name, value, axis=0):
+    tf.summary.scalar(name, tf.reduce_mean(tfm.streaming_concat(value, axis=axis, name='stream/{}'.format(name))[1]))
+
 
 class EvalDatasetRunner(Callback):
     def __init__(self, steps_per_epoch, model, eval_dataset, evaluators=[], eval_steps=1):
