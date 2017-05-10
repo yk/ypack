@@ -206,7 +206,7 @@ class EvalDatasetRunner(Callback):
         if self.trainer.step_count == 0:
             return
         self.trainer.sess.run(self.stream_reset_op)
-        for _ in range(self.eval_steps):
+        for _ in tqdm(range(self.eval_steps), desc="EVAL"):
             if self.model.feed:
                 batch = next(self.data_producer)
                 feed = dict(zip(self.model.get_input_vars(), batch))
