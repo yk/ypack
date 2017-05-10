@@ -194,6 +194,10 @@ class EvalDatasetRunner(Callback):
             if eops is not None:
                 self.eval_ops += eops
         stream_vars = [v for v in tf.local_variables() if 'stream/' in v.name]
+        logging.info('---STREAM VARS---')
+        for v in stream_vars:
+            logging.info(v.name)
+
         self.stream_reset_op = tf.variables_initializer(stream_vars)
         with tf.control_dependencies(self.eval_ops):
             self.summary_op = tf.identity(tf.summary.merge_all(tf.GraphKeys.SUMMARIES))
