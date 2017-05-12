@@ -9,5 +9,6 @@ setup(
     license='MIT',
     author='yk',
     author_email='',
-    description=''
+    description='',
+    install_requires=['tqdm']
 )
