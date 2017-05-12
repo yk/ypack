@@ -229,12 +229,13 @@ TRAINING_SUMMARY_KEY = 'training_summaries'
 
 
 class Trainer:
-    def __init__(self, model, data_producer, callbacks=[], write_train_summaries=True, train_data_size=None):
+    def __init__(self, model, data_producer, callbacks=[], write_train_summaries=True, train_data_size=None, max_steps=None):
         self.model = model
         self.data_producer = data_producer
         self.callbacks = callbacks
         self.write_train_summaries = write_train_summaries
         self.train_data_size = train_data_size
+        self.max_steps = max_steps
 
     def setup(self):
         if self.model.feed:
@@ -315,6 +316,9 @@ class Trainer:
         pass
 
     def stop(self):
+        if self.max_steps:
+            if self.step_count >= self.max_steps:
+                return True
         if self.model.feed:
             return self._stop()
         return self._stop() or self.coord.should_stop()
