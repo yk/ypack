@@ -51,6 +51,12 @@ class Callback:
     def _before_init(self):
         pass
 
+    def after_init(self):
+        self._after_init()
+
+    def _after_init(self):
+        pass
+
     def is_epoch_now(self):
         if self.steps_per_epoch <= 0:
             return False
@@ -257,6 +263,7 @@ class Trainer:
             print(v)
         tf.get_default_graph().finalize()
         self.sess.run(self.init_op)
+        self._after_init()
 
         if not self.model.feed:
             self.coord = tf.train.Coordinator()
@@ -269,6 +276,10 @@ class Trainer:
     def _before_init(self):
         for c in self.callbacks:
             c.before_init()
+
+    def _after_init(self):
+        for c in self.callbacks:
+            c.after_init()
 
     def build_train_op(self, ops, global_step_op=None, training_summary_op=None, do_step=True):
         if global_step_op is None:
