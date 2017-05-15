@@ -263,11 +263,12 @@ class Trainer:
             print(v)
         tf.get_default_graph().finalize()
         self.sess.run(self.init_op)
-        self._after_init()
 
         if not self.model.feed:
             self.coord = tf.train.Coordinator()
             self.threads = tf.train.start_queue_runners(sess=self.sess, coord=self.coord)
+
+        self._after_init()
 
     def _setup_callbacks(self):
         for c in self.callbacks:
