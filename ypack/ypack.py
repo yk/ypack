@@ -83,13 +83,17 @@ class ArgvPrinter(Callback):
 
 
 class ModelSaver(Callback):
-    def __init__(self, *args, write_meta_graph=True, max_to_keep=None, **kwargs):
+    def __init__(self, *args, write_meta_graph=True, max_to_keep=None, var_prefix=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.write_meta_graph = write_meta_graph
         self.max_to_keep = max_to_keep
+        self.prefix = var_prefix
 
     def _setup(self):
-        self.saver = tf.train.Saver(max_to_keep=self.max_to_keep)
+        self._to_save = tf.global_variables()
+        if self.prefix:
+            self._to_save = [v for v in self._to_save if v.name.startswith(self.prefix)]
+        self.saver = tf.train.Saver(self._to_save, max_to_keep=self.max_to_keep)
 
     def _trigger_epoch(self):
         logging.info('Saving model')
