@@ -42,7 +42,13 @@ class Callback:
         self.trainer = trainer
         self._setup()
 
+    def setup_after_trainer(self):
+        self._setup_after_trainer()
+
     def _setup(self):
+        pass
+
+    def _setup_after_trainer(self):
         pass
 
     def before_init(self):
@@ -258,6 +264,7 @@ class Trainer:
             self.model.build_graph(self.data_queue)
         self._setup_callbacks()
         self._setup()
+        self._setup_callbacks_after_trainer()
         shutil.rmtree('./logs', ignore_errors=True)
         self.summary_writer = tf.summary.FileWriter('./logs')
         count_params()
@@ -278,6 +285,10 @@ class Trainer:
     def _setup_callbacks(self):
         for c in self.callbacks:
             c.setup(self)
+
+    def _setup_callbacks_after_trainer(self):
+        for c in self.callbacks:
+            c.setup_after_trainer()
 
     def _before_init(self):
         for c in self.callbacks:
