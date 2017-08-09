@@ -181,29 +181,18 @@ def streaming_concat(name, value, axis=0):
 
 
 class EvalDatasetRunner(Callback):
-    def __init__(self, steps_per_epoch, model, eval_dataset, evaluators=[], eval_steps=1):
+    def __init__(self, steps_per_epoch, model, create_queue_or_iter, evaluators=[], eval_steps=1):
         super().__init__(steps_per_epoch)
-        if model.feed:
-            from tensorpack.dataflow.common import RepeatedData
-            ds = eval_dataset
-            ds.reset_state()
-            self.data = ds
-            ds = RepeatedData(ds, -1)
-            self.data_producer = ds.get_data()
-        else:
-            self.data_producer = eval_dataset
+        self.create_queue_or_iter = create_queue_or_iter
         self.model = model
         self.evaluators = evaluators
         self.eval_steps = eval_steps
 
     def _setup(self):
-        if self.model.feed:
-            self.data_queue = None
-        else:
-            self.data_queue = self.data_producer()
+        self.data = self.create_queue_or_iter()
 
         with tf.variable_scope('', reuse=True), no_training_context():
-            self.model.build_graph(self.data_queue)
+            self.model.build_graph(self.data)
         self.eval_ops = []
         for e in self.evaluators:
             e.setup(self)
@@ -225,11 +214,11 @@ class EvalDatasetRunner(Callback):
         self.trainer.sess.run(self.stream_reset_op)
         for _ in tqdm(range(self.eval_steps), desc="EVAL"):
             if self.model.feed:
-                batch = next(self.data_producer)
-                feed = dict(zip(self.model.get_input_vars(), batch))
-                summary_str = self.trainer.sess.run(self.summary_op, feed_dict=feed)
+                batch = next(self.data)
             else:
-                summary_str = self.trainer.sess.run(self.summary_op)
+                batch = None
+            feed = self.model.build_feed_dict(batch)
+            summary_str = self.trainer.sess.run(self.summary_op, feed_dict=feed)
         self.trainer.summary_writer.add_summary(summary_str, self.trainer.step_count + 1)
         self.trainer.summary_writer.flush()
 
@@ -246,22 +235,19 @@ TRAINING_SUMMARY_KEY = 'training_summaries'
 
 
 class Trainer:
-    def __init__(self, model, data_producer, callbacks=[], write_train_summaries=True, train_data_size=None, max_steps=None):
+    def __init__(self, model, create_queue_or_iter, callbacks=[], write_train_summaries=True, train_data_size=None, max_steps=None):
         self.model = model
-        self.data_producer = data_producer
+        self.create_queue_or_iter = create_queue_or_iter
         self.callbacks = callbacks
         self.write_train_summaries = write_train_summaries
         self.train_data_size = train_data_size
         self.max_steps = max_steps
 
     def setup(self):
-        if self.model.feed:
-            self.data_queue = None
-        else:
-            self.data_queue = self.data_producer()
+        self.data = self.create_queue_or_iter()
 
         with training_context():
-            self.model.build_graph(self.data_queue)
+            self.model.build_graph(self.data)
         self._setup_callbacks()
         self._setup()
         self._setup_callbacks_after_trainer()
@@ -276,9 +262,8 @@ class Trainer:
         tf.get_default_graph().finalize()
         self.sess.run(self.init_op)
 
-        if not self.model.feed:
-            self.coord = tf.train.Coordinator()
-            self.threads = tf.train.start_queue_runners(sess=self.sess, coord=self.coord)
+        self.coord = tf.train.Coordinator()
+        self.threads = tf.train.start_queue_runners(sess=self.sess, coord=self.coord)
 
         self._after_init()
 
@@ -329,11 +314,11 @@ class Trainer:
 
     def _run_step(self):
         if self.model.feed:
-            batch = next(self.data_producer)
-            feed = dict(zip(self.model.get_input_vars(), batch))
-            summary_str, global_step = self.sess.run(next(self.train_ops), feed_dict=feed)
+            batch = next(self.data)
         else:
-            summary_str, global_step = self.sess.run(next(self.train_ops))
+            batch = None
+        feed = self.model.build_feed_dict(batch)
+        summary_str, global_step = self.sess.run(next(self.train_ops), feed_dict=feed)
         did_step = global_step == self.step_count + 1
         if self.write_train_summaries and len(summary_str) > 0 and did_step:
             self.summary_writer.add_summary(summary_str, global_step=global_step)
@@ -347,8 +332,6 @@ class Trainer:
         if self.max_steps:
             if self.step_count >= self.max_steps:
                 return True
-        if self.model.feed:
-            return self._stop()
         return self._stop() or self.coord.should_stop()
 
     def run_callbacks(self):
@@ -371,24 +354,28 @@ class Trainer:
                     if did_step:
                         self.step_count += 1
             finally:
-                if not self.model.feed:
-                    self.coord.request_stop()
-            if not self.model.feed:
-                self.coord.join(self.threads)
+                self.coord.request_stop()
+            self.coord.join(self.threads)
             self.sess.close()
 
 
 class ModelDesc:
-    def __init__(self, feed=False):
-        self.feed = feed
+    @property
+    def feed(self):
+        return self._get_input_vars() is not None
 
     def build_graph(self, input_vars=None):
-        if input_vars is None:
+        if self.feed:
             input_vars = self.get_input_vars()
         return self._build_graph(input_vars)
 
     def _build_graph(self, input_vars):
         pass
+
+    def build_feed_dict(self, batch=None):
+        if not self.feed:
+            return None
+        return dict(zip(self.get_input_vars(), batch))
 
     def get_input_vars(self):
         if not hasattr(self.__class__, '_input_vars'):
