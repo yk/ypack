@@ -362,7 +362,7 @@ class Trainer:
 class ModelDesc:
     @property
     def feed(self):
-        return self._get_input_vars() is not None
+        return self.get_input_vars() is not None
 
     def build_graph(self, input_vars=None):
         if self.feed:
