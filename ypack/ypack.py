@@ -218,6 +218,8 @@ class EvalDatasetRunner(Callback):
             else:
                 batch = None
             feed = self.model.build_feed_dict(batch)
+            self.current_batch = batch
+            self.current_feed = feed
             summary_str = self.trainer.sess.run(self.summary_op, feed_dict=feed)
         self.trainer.summary_writer.add_summary(summary_str, self.trainer.step_count + 1)
         self.trainer.summary_writer.flush()
