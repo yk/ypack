@@ -159,6 +159,18 @@ class Evaluator:
     def _setup(self):
         pass
 
+    def setup_after_trainer(self):
+        self._setup_after_trainer()
+
+    def _setup_after_trainer(self):
+        pass
+
+    def after_init(self):
+        self._after_init()
+
+    def _after_init(self):
+        pass
+
     def _get_ops(self):
         return []
 
@@ -207,6 +219,14 @@ class EvalDatasetRunner(Callback):
         self.stream_reset_op = tf.variables_initializer(stream_vars)
         with tf.control_dependencies(self.eval_ops):
             self.summary_op = tf.identity(tf.summary.merge_all(tf.GraphKeys.SUMMARIES))
+
+    def _setup_after_trainer(self):
+        for e in self.evaluators:
+            e.setup_after_trainer()
+
+    def _after_init(self):
+        for e in self.evaluators:
+            e.after_init()
 
     def _trigger_epoch(self):
         if self.trainer.step_count == 0:
