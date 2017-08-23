@@ -362,8 +362,8 @@ class Trainer:
 
     def train(self):
         with tf.Graph().as_default():
-            self.setup()
             self.step_count = 0
+            self.setup()
             stop_it = False
             try:
                 while not self.stop() and not stop_it:
