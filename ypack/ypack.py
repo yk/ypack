@@ -171,6 +171,9 @@ class Evaluator:
     def _after_init(self):
         pass
 
+    def _before_epoch_ops(self):
+        return []
+
     def _get_ops(self):
         return []
 
@@ -205,19 +208,26 @@ class EvalDatasetRunner(Callback):
 
         with tf.variable_scope('', reuse=True), no_training_context():
             self.model.build_graph(self.data)
-        self.eval_ops = []
+
+        before_epoch_ops = []
+        eval_ops = []
         for e in self.evaluators:
             e.setup(self)
+            beops = e._before_epoch_ops()
+            if beops is not None:
+                before_epoch_ops += beops
             eops = e._get_ops()
             if eops is not None:
-                self.eval_ops += eops
+                eval_ops += eops
         stream_vars = [v for v in tf.local_variables() if 'stream/' in v.name]
         logging.info('---STREAM VARS---')
         for v in stream_vars:
             logging.info(v.name)
 
+        self.before_epoch_op = tf.group(tf.no_op, before_epoch_ops)
+
         self.stream_reset_op = tf.variables_initializer(stream_vars)
-        with tf.control_dependencies(self.eval_ops):
+        with tf.control_dependencies(eval_ops):
             self.summary_op = tf.identity(tf.summary.merge_all(tf.GraphKeys.SUMMARIES))
 
     def _setup_after_trainer(self):
@@ -232,6 +242,7 @@ class EvalDatasetRunner(Callback):
         if self.trainer.step_count == 0:
             return
         self.trainer.sess.run(self.stream_reset_op)
+        self.trainer.sess.run(self.before_epoch_op)
         for _ in tqdm(range(self.eval_steps), desc="EVAL"):
             if self.model.feed:
                 batch = next(self.data)
