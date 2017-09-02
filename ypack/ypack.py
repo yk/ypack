@@ -224,7 +224,7 @@ class EvalDatasetRunner(Callback):
         for v in stream_vars:
             logging.info(v.name)
 
-        self.before_epoch_op = tf.group(tf.no_op, before_epoch_ops)
+        self.before_epoch_op = tf.group(tf.no_op, *before_epoch_ops)
 
         self.stream_reset_op = tf.variables_initializer(stream_vars)
         with tf.control_dependencies(eval_ops):
