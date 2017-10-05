@@ -17,7 +17,7 @@ def tf_print(a):
 
 def variables_by_prefix(prefix):
     vs = tf.global_variables()
-    return [v for v in vs if v.name.startswith('prefix')]
+    return [v for v in vs if v.name.startswith(prefix)]
 
 
 def variable_by_name_end(name):
