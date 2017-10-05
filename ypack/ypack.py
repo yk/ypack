@@ -15,6 +15,11 @@ def tf_print(a):
     return tf.Print(a, [tf.reduce_mean(a)])
 
 
+def variables_by_prefix(prefix):
+    vs = tf.global_variables()
+    return [v for v in vs if v.name.startswith('prefix')]
+
+
 def variable_by_name_end(name):
     vs = tf.get_collection('variables')
     for v in vs:
