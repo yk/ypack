@@ -94,11 +94,12 @@ class ArgvPrinter(Callback):
 
 
 class ModelSaver(Callback):
-    def __init__(self, *args, write_meta_graph=True, max_to_keep=None, var_prefix=None, **kwargs):
+    def __init__(self, *args, write_meta_graph=True, max_to_keep=None, var_prefix=None, save_dir=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.write_meta_graph = write_meta_graph
         self.max_to_keep = max_to_keep
         self.prefix = var_prefix
+        self.save_dir = save_dir
 
     def _setup(self):
         self._to_save = tf.global_variables()
@@ -108,7 +109,10 @@ class ModelSaver(Callback):
 
     def _trigger_epoch(self):
         logging.info('Saving model')
-        self.saver.save(self.trainer.sess, './logs/model.ckpt', write_meta_graph=self.write_meta_graph, global_step=self.trainer.step_count)
+        path = './logs/model.ckpt'
+        if self.save_dir is not None:
+            path = './logs/{}/model.ckpt'.format(save_dir)
+        self.saver.save(self.trainer.sess, path, write_meta_graph=self.write_meta_graph, global_step=self.trainer.step_count)
 
 
 class ModelRestorer(Callback):
