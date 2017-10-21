@@ -111,7 +111,7 @@ class ModelSaver(Callback):
         logging.info('Saving model')
         path = './logs/model.ckpt'
         if self.save_dir is not None:
-            path = './logs/{}/model.ckpt'.format(save_dir)
+            path = './logs/{}/model.ckpt'.format(self.save_dir)
         self.saver.save(self.trainer.sess, path, write_meta_graph=self.write_meta_graph, global_step=self.trainer.step_count)
 
 
