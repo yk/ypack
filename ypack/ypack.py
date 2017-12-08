@@ -277,13 +277,14 @@ TRAINING_SUMMARY_KEY = 'training_summaries'
 
 
 class Trainer:
-    def __init__(self, model, create_queue_or_iter, callbacks=[], write_train_summaries=True, train_data_size=None, max_steps=None):
+    def __init__(self, model, create_queue_or_iter, callbacks=[], write_train_summaries=True, train_data_size=None, max_steps=None, train_log_steps=1):
         self.model = model
         self.create_queue_or_iter = create_queue_or_iter
         self.callbacks = callbacks
         self.write_train_summaries = write_train_summaries
         self.train_data_size = train_data_size
         self.max_steps = max_steps
+        self.train_log_steps = train_log_steps
 
     def setup(self):
         self.data = self.create_queue_or_iter()
@@ -362,7 +363,7 @@ class Trainer:
         feed = self.model.build_feed_dict(batch)
         summary_str, global_step = self.sess.run(next(self.train_ops), feed_dict=feed)
         did_step = global_step == self.step_count + 1
-        if self.write_train_summaries and len(summary_str) > 0 and did_step:
+        if self.write_train_summaries and len(summary_str) > 0 and did_step and global_step % self.train_log_steps == 0:
             self.summary_writer.add_summary(summary_str, global_step=global_step)
             self.summary_writer.flush()
         return did_step
