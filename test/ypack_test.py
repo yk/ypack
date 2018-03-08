@@ -1,5 +1,16 @@
-from confprod import confprod
+#!/usr/bin/env python3
+
+# from confprod import confprod
 import unittest
+from tensorflow import test as tftest
+import tensorflow as tf
+from tensorflow.python.training.saver import BaseSaverBuilder
+import tempfile
+import sh
+import os
+import ypack
+import logging
+logging.basicConfig(level=logging.INFO)
 
 
 # class SGD(confprod.Parameterized):
@@ -74,5 +85,58 @@ import unittest
         # self.assertAlmostEqual(conf["loss"].get_parameter("amount"), 1e-3)
 
 
+class SaveRestoreTestCase(tftest.TestCase):
+
+    def _buildGraph(self, size=1):
+        for i in range(size):
+            tf.Variable(1., name='v_' + str(i))
+
+    def _saveAndRestore(self, save_size=1, restore_size=1, saver_class=tf.train.Saver, builder_class=BaseSaverBuilder):
+        with tempfile.TemporaryDirectory() as path:
+            fn = 'checkpoint.ckpt'
+            afn = os.path.join(path, fn)
+
+            with tf.Graph().as_default():
+                self._buildGraph(save_size)
+                saver = saver_class(builder=builder_class(), filename=afn)
+                self.assertEqual(len(tf.global_variables()), save_size)
+
+                with self.test_session(tf.get_default_graph()) as sess:
+                    sess.run(tf.global_variables_initializer())
+                    saver.save(sess, afn)
+                    self.assertIn(fn + '.index', os.listdir(path))
+
+            with tf.Graph().as_default():
+                self._buildGraph(restore_size)
+                saver = saver_class(builder=builder_class(), filename=afn)
+                self.assertEqual(len(tf.global_variables()), restore_size)
+
+                with self.test_session(tf.get_default_graph()) as sess:
+                    saver.restore(sess, afn)
+
+    def testSaveRestore(self):
+        self._saveAndRestore(2, 2)
+
+    def testSaveMoreThanRestore(self):
+        self._saveAndRestore(3, 2)
+
+    def testSaveLessThanRestore(self):
+        try:
+            self._saveAndRestore(2, 3)
+            self.fail()
+        except tf.errors.NotFoundError:
+            pass
+
+    def testDynamicSaveRestore(self):
+        self._saveAndRestore(2, 2, builder_class=ypack.DynamicSaverBuilder)
+
+    def testDynamicSaveMoreThanRestore(self):
+        self._saveAndRestore(3, 2, builder_class=ypack.DynamicSaverBuilder)
+
+    def testDynamicSaveLessThanRestore(self):
+        self._saveAndRestore(2, 3, builder_class=ypack.DynamicSaverBuilder)
+
+
 if __name__ == '__main__':
-    unittest.main()
+    # unittest.main()
+    tftest.main()

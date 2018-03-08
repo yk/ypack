@@ -9,6 +9,10 @@ import numpy as np
 import itertools as itt
 import functools as fct
 import tensorflow.contrib.metrics as tfm
+from tensorflow.python.training.saver import BaseSaverBuilder
+import os.path
+from tensorflow.python.ops import io_ops
+from tensorflow.python.framework import ops
 
 
 def tf_print(a):
@@ -541,3 +545,35 @@ def count_params():
     size = lambda v: fct.reduce(lambda x, y: x*y, v.get_shape().as_list())
     n = sum(size(v) for v in tf.trainable_variables())
     print("Model size: %dK" % (n//1000,))
+
+
+class DynamicSaverBuilder(BaseSaverBuilder):
+    def _build_internal(self, names_to_saveables, *args, filename=None, **kwargs):
+        assert filename is not None
+        reader = None
+        if tf.train.checkpoint_exists(filename):
+            logging.info('preparing to read from checkpoint file %s')
+            reader = tf.train.load_checkpoint(filename)
+            shape_map = reader.get_variable_to_shape_map()
+            dtype_map = reader.get_variable_to_dtype_map()
+        else:
+            logging.warn('checkpoint file %s does not exist, all variables will be added', filename)
+
+        vars_to_restore = []
+        for v in names_to_saveables:
+            if reader is None:
+                vars_to_restore.append(v)
+            else:
+                tensor_name = v.op.name
+                tensor_shape = v.get_shape().as_list()
+                tensor_dtype = tf.identity(v).dtype
+                if tensor_name not in shape_map or tensor_name not in dtype_map:
+                    logging.warn('variable %s not in checkpoint', tensor_name)
+                elif shape_map[tensor_name] != tensor_shape:
+                    logging.warn('variable %s in checkpoint, but checkpoint shape %r does not match graph shape %r', tensor_name, shape_map[tensor_name], tensor_shape)
+                elif dtype_map[tensor_name] != tensor_dtype:
+                    logging.warn('variable %s in checkpoint, but checkpoint dtype %r does not match graph dtype %r', tensor_name, dtype_map[tensor_name], tensor_dtype)
+                else:
+                    vars_to_restore.append(v)
+                    logging.info('adding variable %s to be restored', tensor_name)
+        return super()._build_internal(vars_to_restore, *args, filename=filename, **kwargs)
