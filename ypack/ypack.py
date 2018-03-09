@@ -553,7 +553,8 @@ from tensorflow.python.eager import context
 
 class OptimisticRestoreSaver(Saver):
     """Only restores variables in `var_list` that are present in the checkpoint on restore. However, on save, all variables in `var_list` are written to the checkpoint."""
-    def restore(self, sess, save_path):
+    def restore(self, sess, save_path, var_filter=lambda v: True):
+        """Restores only variables that are contained in `save_path` and match in shape and dtype and return `True` when passed to `var_filter`."""
         if self._is_empty:
             return
         if save_path is None:
@@ -579,6 +580,8 @@ class OptimisticRestoreSaver(Saver):
                 logging.warn('variable %s in checkpoint, but checkpoint shape %r does not match graph shape %r', tensor_name, shape_map[tensor_name], tensor_shape)
             elif dtype_map[tensor_name] != tensor_dtype:
                 logging.warn('variable %s in checkpoint, but checkpoint dtype %r does not match graph dtype %r', tensor_name, dtype_map[tensor_name], tensor_dtype)
+            elif not var_filter(v):
+                logging.info('variable %s rejected by var_filter', tensor_name, dtype_map[tensor_name], tensor_dtype)
             else:
                 restore_ops.append(r_op)
                 logging.info('adding variable %s to be restored', tensor_name)
