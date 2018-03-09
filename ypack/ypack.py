@@ -9,10 +9,7 @@ import numpy as np
 import itertools as itt
 import functools as fct
 import tensorflow.contrib.metrics as tfm
-from tensorflow.python.training.saver import BaseSaverBuilder
 import os.path
-from tensorflow.python.ops import io_ops
-from tensorflow.python.framework import ops
 
 
 def tf_print(a):
@@ -547,33 +544,49 @@ def count_params():
     print("Model size: %dK" % (n//1000,))
 
 
-class DynamicSaverBuilder(BaseSaverBuilder):
-    def _build_internal(self, names_to_saveables, *args, filename=None, **kwargs):
-        assert filename is not None
-        reader = None
-        if tf.train.checkpoint_exists(filename):
-            logging.info('preparing to read from checkpoint file %s')
-            reader = tf.train.load_checkpoint(filename)
-            shape_map = reader.get_variable_to_shape_map()
-            dtype_map = reader.get_variable_to_dtype_map()
-        else:
-            logging.warn('checkpoint file %s does not exist, all variables will be added', filename)
 
-        vars_to_restore = []
-        for v in names_to_saveables:
-            if reader is None:
-                vars_to_restore.append(v)
+from tensorflow.python.framework import ops
+from tensorflow.python.ops import io_ops
+from tensorflow.python.training.saver import Saver
+from tensorflow.python.training.saver import BaseSaverBuilder
+from tensorflow.python.eager import context
+
+class OptimisticRestoreSaver(Saver):
+    """Only restores variables in `var_list` that are present in the checkpoint on restore. However, on save, all variables in `var_list` are written to the checkpoint."""
+    def restore(self, sess, save_path):
+        if self._is_empty:
+            return
+        if save_path is None:
+            raise ValueError("Can't load save_path when it is None.")
+        logging.info("Restoring parameters from %s", save_path)
+
+        reader = tf.train.load_checkpoint(save_path)
+        shape_map = reader.get_variable_to_shape_map()
+        dtype_map = reader.get_variable_to_dtype_map()
+
+        restore_op_name = self.saver_def.restore_op_name
+        restore_op_grouped = sess.graph.get_operation_by_name(restore_op_name)
+
+        restore_ops = []
+        for r_op in restore_op_grouped.control_inputs:
+            v = r_op.inputs[0]
+            tensor_name = v.op.name
+            tensor_shape = v.get_shape().as_list()
+            tensor_dtype = v.dtype.base_dtype
+            if tensor_name not in shape_map or tensor_name not in dtype_map:
+                logging.warn('variable %s not in checkpoint', tensor_name)
+            elif shape_map[tensor_name] != tensor_shape:
+                logging.warn('variable %s in checkpoint, but checkpoint shape %r does not match graph shape %r', tensor_name, shape_map[tensor_name], tensor_shape)
+            elif dtype_map[tensor_name] != tensor_dtype:
+                logging.warn('variable %s in checkpoint, but checkpoint dtype %r does not match graph dtype %r', tensor_name, dtype_map[tensor_name], tensor_dtype)
             else:
-                tensor_name = v.op.name
-                tensor_shape = v.get_shape().as_list()
-                tensor_dtype = tf.identity(v).dtype
-                if tensor_name not in shape_map or tensor_name not in dtype_map:
-                    logging.warn('variable %s not in checkpoint', tensor_name)
-                elif shape_map[tensor_name] != tensor_shape:
-                    logging.warn('variable %s in checkpoint, but checkpoint shape %r does not match graph shape %r', tensor_name, shape_map[tensor_name], tensor_shape)
-                elif dtype_map[tensor_name] != tensor_dtype:
-                    logging.warn('variable %s in checkpoint, but checkpoint dtype %r does not match graph dtype %r', tensor_name, dtype_map[tensor_name], tensor_dtype)
-                else:
-                    vars_to_restore.append(v)
-                    logging.info('adding variable %s to be restored', tensor_name)
-        return super()._build_internal(vars_to_restore, *args, filename=filename, **kwargs)
+                restore_ops.append(r_op)
+                logging.info('adding variable %s to be restored', tensor_name)
+
+        if context.in_graph_mode():
+            for r_op in restore_ops:
+                sess.run(r_op,
+                    {self.saver_def.filename_tensor_name: save_path})
+        else:
+            raise NotImplementedError("eager selective restoring not supprted yet")
+
