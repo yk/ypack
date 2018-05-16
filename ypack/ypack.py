@@ -474,7 +474,7 @@ def get_global_context():
 
 
 @contextmanager
-def context(**kwargs):
+def _context(**kwargs):
     gc = get_global_context()
     c = copy.deepcopy(gc)
     gc.update(kwargs)
@@ -487,7 +487,7 @@ def context(**kwargs):
 @contextmanager
 def training_context(**kwargs):
     kwargs['training'] = True
-    c = context().func(**kwargs)
+    c = _context().func(**kwargs)
     next(c)
     yield
     next(c)
@@ -497,7 +497,7 @@ def training_context(**kwargs):
 @contextmanager
 def no_training_context(**kwargs):
     kwargs['training'] = False
-    c = context().func(**kwargs)
+    c = _context().func(**kwargs)
     next(c)
     yield
     next(c)
