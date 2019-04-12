@@ -1,14 +1,15 @@
-from distutils.core import setup
+#!/usr/bin/env python3
+
+from setuptools import setup, find_packages
 
 setup(
     name='ypack',
     version='0.0.1',
-    packages=[''],
-    package_dir={'':'ypack'},
+    packages=find_packages(),
     url='',
     license='MIT',
     author='yk',
     author_email='',
     description='',
-    install_requires=['tqdm']
+    install_requires=['tqdm', 'numpy']
 )
