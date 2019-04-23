@@ -28,5 +28,4 @@ class UnitTests(absltest.TestCase):
 
 
 if __name__ == '__main__':
-    logging.set_verbosity(logging.DEBUG)
     absltest.main()

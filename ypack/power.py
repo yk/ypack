@@ -14,7 +14,7 @@ def _singular_value(A, u, v):
     return u.dot(A.dot(v))
 
 
-def _normalize(v):
+def normalize(v):
     v /= np.linalg.norm(v)
     return v
 
@@ -30,7 +30,7 @@ def power_method_square_matrix(A, v0=None, max_iters=100000, tol=1e-9):
 
     def fn(v):
         v = A.dot(v)
-        _normalize(v)
+        normalize(v)
         return v
 
     def stop_fn(v):
@@ -58,10 +58,9 @@ def power_method_symmetric(fn, v0, stop_fn, max_iters=100000):
     return v0
 
 
-def power_method_asymmetric(forward_fn, backward_fn, u0, v0, stop_fn, max_iters=100000):
+def power_method_asymmetric(forward_backward_fn, v0, stop_fn, max_iters=100000):
     for i in range(max_iters):
-        u0 = forward_fn(v0)
-        v0 = backward_fn(u0)
+        u0, v0 = forward_backward_fn(v0)
         if stop_fn(u0, v0):
             break
     else:
@@ -72,10 +71,9 @@ def power_method_asymmetric(forward_fn, backward_fn, u0, v0, stop_fn, max_iters=
 
 
 
-def power_method_nonsquare_matrix(A, u0=None, v0=None, max_iters=100000, tol=1e-9):
+def power_method_nonsquare_matrix(A, v0=None, max_iters=100000, tol=1e-9):
     m, n = A.shape
-    if u0 is None:
-        u0 = np.ones(m, A.dtype) / np.sqrt(m)
+    u0 = np.ones(m, A.dtype) / np.sqrt(m)
     if v0 is None:
         v0 = np.ones(n, A.dtype) / np.sqrt(n)
 
@@ -83,13 +81,18 @@ def power_method_nonsquare_matrix(A, u0=None, v0=None, max_iters=100000, tol=1e-
 
     def forward_fn(v):
         u = A.dot(v)
-        _normalize(u)
+        normalize(u)
         return u
 
     def backward_fn(u):
         v = A.T.dot(u)
-        _normalize(v)
+        normalize(v)
         return v
+
+    def forward_backward_fn(v):
+        u = forward_fn(v)
+        v = backward_fn(u)
+        return u, v
 
     def stop_fn(u, v):
         nonlocal sv
@@ -98,7 +101,7 @@ def power_method_nonsquare_matrix(A, u0=None, v0=None, max_iters=100000, tol=1e-
             return True
         sv = sv_new
 
-    u1, v1 = power_method_asymmetric(forward_fn, backward_fn, u0, v0, stop_fn)
+    u1, v1 = power_method_asymmetric(forward_backward_fn, v0, stop_fn)
     sv = _singular_value(A, u1, v1)
 
     return sv, u1, v1
