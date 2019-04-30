@@ -59,6 +59,7 @@ def power_method_symmetric(fn, v0, stop_fn, max_iters=100000):
 
 
 def power_method_asymmetric(forward_backward_fn, v0, stop_fn, max_iters=100000):
+    u0 = v0
     for i in range(max_iters):
         u0, v0 = forward_backward_fn(v0)
         if stop_fn(u0, v0):
