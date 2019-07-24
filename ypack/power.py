@@ -58,14 +58,15 @@ def power_method_symmetric(fn, v0, stop_fn, max_iters=100000):
     return v0
 
 
-def power_method_asymmetric(forward_backward_fn, v0, stop_fn, max_iters=100000):
+def power_method_asymmetric(forward_backward_fn, v0, stop_fn, max_iters=100000, log_max_iters_reached=True):
     u0 = v0
     for i in range(max_iters):
         u0, v0 = forward_backward_fn(v0)
         if stop_fn(u0, v0):
             break
     else:
-        logging.warning('Power method did not converge')
+        if log_max_iters_reached:
+            logging.warning('Power method did not converge')
     logging.debug('Power method took {} iterations'.format(i))
 
     return u0, v0
